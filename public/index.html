@@ -1,0 +1,898 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>AI创物工厂 × AI编码 · 从需求到可维护代码</title>
+<style>
+:root {
+  --bg: #0a0e0c; --bg-soft: #0e1412; --card: #101713; --card-hover: #131c17;
+  --border: #1e2b24; --border-strong: #2a3c32;
+  --accent: #34d873; --accent-glow: rgba(52,216,115,.12);
+  --text: #e9f2ec; --muted: #7d9086; --muted-2: #55665d;
+  --danger: #ff6b6b; --warn: #ffc94d;
+  --radius: 14px;
+  --font: "PingFang SC","Microsoft YaHei","Segoe UI",system-ui,sans-serif;
+  --mono: "JetBrains Mono","Cascadia Code",Consolas,"Courier New",monospace;
+}
+* { margin:0; padding:0; box-sizing:border-box; }
+body { background:var(--bg); color:var(--text); font-family:var(--font); font-size:14.5px; line-height:1.7; -webkit-font-smoothing:antialiased; }
+button { font-family:inherit; cursor:pointer; }
+textarea, select, input { font-family:inherit; }
+
+/* 导航 */
+.nav { position:sticky; top:0; z-index:50; display:flex; align-items:center; gap:20px; padding:0 32px; height:58px; background:rgba(10,14,12,.88); backdrop-filter:blur(12px); border-bottom:1px solid var(--border); }
+.logo { display:flex; align-items:center; gap:10px; font-weight:700; font-size:15.5px; white-space:nowrap; letter-spacing:.2px; }
+.logo-mark {
+  width:28px; height:28px; border-radius:9px;
+  background:linear-gradient(145deg,#b9f46b,#77d645);
+  display:grid; place-items:center; color:#123315; flex-shrink:0;
+}
+.logo .cross { color:rgba(233,242,236,.55); font-weight:600; margin:0 2px; }
+.nav .sub { color:var(--muted); font-size:12.5px; }
+.nav-spacer { flex:1; }
+.model-sel { background:var(--bg-soft); color:var(--text); border:1px solid var(--border-strong); border-radius:8px; padding:5px 10px; font-size:12.5px; }
+.status-dot { width:8px; height:8px; border-radius:50%; background:var(--muted-2); display:inline-block; margin-right:6px; }
+.status-dot.ok { background:var(--accent); box-shadow:0 0 8px var(--accent-glow); }
+
+/* 布局：左 1/4（上：需求描述，下：AI助手），右 1/2（代码编辑器） */
+.wrap { max-width:1440px; margin:0 auto; padding:18px 22px 22px; display:grid; grid-template-columns:minmax(320px,1fr) 2fr; gap:18px; height:calc(100vh - 58px); }
+.col { display:flex; flex-direction:column; gap:16px; min-width:0; min-height:0; }
+.panel { background:var(--card); border:1px solid var(--border); border-radius:var(--radius); overflow:hidden; display:flex; flex-direction:column; min-height:0; }
+.panel-head { flex-shrink:0; display:flex; align-items:center; gap:10px; padding:11px 18px; border-bottom:1px solid var(--border); font-size:13px; color:var(--muted); }
+@media (max-width:1020px){
+  .wrap { grid-template-columns:1fr; height:auto; }
+  .chat-body { height:460px; flex:none; }
+  .editor-wrap { height:380px; flex:none; }
+}
+.panel-head .dot { width:8px; height:8px; border-radius:50%; background:var(--accent); }
+.panel-head b { color:var(--text); font-size:13.5px; }
+
+/* 需求区 */
+.req-area { width:100%; height:158px; min-height:110px; resize:none; background:var(--bg-soft); color:var(--text); border:0; outline:none; padding:14px 18px; font-size:13.8px; line-height:1.7; }
+.req-area::-webkit-resizer { display:none; }
+.req-area::placeholder { color:var(--muted-2); }
+.flow-grid { display:grid; grid-template-columns:1fr 1fr; gap:8px; padding:12px 14px 14px; }
+.flow-btn {
+  display:flex; align-items:center; gap:9px; text-align:left;
+  background:var(--bg-soft); border:1px solid var(--border-strong); border-radius:10px;
+  padding:9px 12px; color:var(--text); transition:all .18s;
+}
+.flow-btn:hover { border-color:var(--accent); background:var(--accent-glow); transform:translateY(-1px); }
+.flow-btn:disabled { opacity:.45; cursor:wait; transform:none; }
+.flow-btn .ic { font-size:17px; }
+.flow-btn .t { font-size:13px; font-weight:600; }
+.flow-btn .d { font-size:11px; color:var(--muted); line-height:1.45; }
+.flow-btn.main { grid-column:span 2; background:var(--accent); border-color:var(--accent); color:#06130a; justify-content:center; padding:11px; }
+.flow-btn.main .t { font-size:14px; }
+.flow-btn.main .d { color:rgba(6,19,10,.65); }
+.flow-btn.main:hover { background:#4ce78a; box-shadow:0 0 26px var(--accent-glow); }
+
+/* 编辑器：占满右列全高 */
+.editor-panel { flex:1; }
+.editor-wrap { position:relative; flex:1; min-height:0; font-family:var(--mono); font-size:12.8px; line-height:1.65; }
+.editor-wrap .gutter { position:absolute; left:0; top:0; bottom:0; width:44px; background:var(--bg-soft); color:var(--muted-2); text-align:right; padding:14px 10px 14px 0; overflow:hidden; user-select:none; border-right:1px solid var(--border); white-space:pre; }
+.editor-wrap textarea, .editor-wrap pre.highlight { position:absolute; inset:0; left:44px; padding:14px 16px; margin:0; border:0; font:inherit; line-height:inherit; white-space:pre; overflow:auto; tab-size:2; }
+.editor-wrap textarea { background:transparent; color:transparent; caret-color:var(--accent); resize:none; outline:none; z-index:2; }
+.editor-wrap textarea::selection { background:rgba(52,216,115,.25); }
+pre.highlight { z-index:1; pointer-events:none; color:var(--text); }
+pre.highlight .kw{color:#6ee7a5} pre.highlight .str{color:#ffcf7a} pre.highlight .cm{color:#5b6f63;font-style:italic} pre.highlight .fn{color:#7dd3fc} pre.highlight .num{color:#f0a6ff}
+.editor-tools { display:flex; gap:8px; padding:10px 14px; border-top:1px solid var(--border); align-items:center; flex-wrap:wrap; }
+.mini-btn { border:1px solid var(--border-strong); background:transparent; color:var(--muted); border-radius:7px; padding:5px 12px; font-size:12px; transition:all .15s; }
+.mini-btn:hover { color:var(--accent); border-color:var(--accent); }
+.mini-btn.run { background:var(--accent); border-color:var(--accent); color:#06130a; font-weight:600; }
+.mini-btn.run:hover { background:#4ce78a; color:#06130a; }
+.mini-btn.run:disabled { opacity:.5; cursor:wait; }
+.tool-sel { background:var(--bg-soft); color:var(--muted); border:1px solid var(--border-strong); border-radius:7px; padding:5px 8px; font-size:12px; }
+.console { display:none; height:168px; flex-shrink:0; border-top:1px solid var(--border); background:#080c0a; flex-direction:column; }
+.console.show { display:flex; }
+.console-head { display:flex; align-items:center; gap:10px; padding:7px 14px; border-bottom:1px solid var(--border); font-size:11.5px; color:var(--muted); flex-shrink:0; }
+.console-head b { color:var(--text); font-size:12px; }
+.console-body { flex:1; overflow:auto; padding:10px 14px; font-family:var(--mono); font-size:12px; line-height:1.6; white-space:pre-wrap; overflow-wrap:break-word; }
+.console-body .l-log { color:#c9d9cf; }
+.console-body .l-info { color:#7dd3fc; }
+.console-body .l-error { color:var(--danger); }
+.console-body .l-warn { color:var(--warn); }
+.console-body .l-ok { color:var(--accent); }
+.console.preview-mode { height:320px; }
+.html-preview { margin:8px 0 4px; }
+.html-preview iframe { width:100%; height:230px; border:1px solid var(--border-strong); border-radius:8px; background:#fff; }
+
+/* AI 输出：占满左下剩余空间 */
+.req-panel { flex-shrink:0; }
+.chat-panel { flex:1; min-height:240px; }
+.chat-body { flex:1; min-height:0; overflow:auto; padding:16px 18px; }
+.msg { margin-bottom:18px; }
+.msg .who { font-size:12px; color:var(--muted-2); margin-bottom:6px; letter-spacing:.5px; }
+.msg.ai .who { color:var(--accent); }
+.msg .content { font-size:13.8px; overflow-wrap:break-word; }
+.msg .content h3 {
+  font-size:14px; color:var(--accent); font-weight:600; line-height:1.55;
+  margin:18px 0 7px; padding-left:10px; border-left:3px solid var(--accent);
+}
+.msg .content h3:first-child { margin-top:2px; }
+.msg .content p { margin:8px 0; color:#c9d9cf; }
+.msg .content ul.md-list, .msg .content ol.md-list { margin:8px 0 12px 22px; }
+.msg .content li { margin:7px 0; padding-left:3px; color:#c9d9cf; }
+.msg .content ol.md-list li::marker { color:var(--accent); font-weight:600; }
+.msg .content ul.md-list li::marker { color:var(--accent); }
+.msg .content b { color:var(--text); }
+.msg .content .md-table { width:100%; border-collapse:collapse; margin:10px 0 14px; font-size:12.5px; }
+.msg .content .md-table th, .msg .content .md-table td { border:1px solid var(--border-strong); padding:6px 9px; text-align:left; }
+.msg .content .md-table th { background:var(--bg-soft); color:var(--accent); font-weight:600; }
+.msg .content code.inline { font-family:var(--mono); font-size:12px; background:var(--bg-soft); border:1px solid var(--border); border-radius:5px; padding:1px 6px; color:#ffcf7a; }
+.codeblock { position:relative; background:var(--bg-soft); border:1px solid var(--border-strong); border-radius:10px; margin:10px 0; overflow:hidden; }
+.cb-head { display:flex; align-items:center; padding:7px 150px 7px 14px; border-bottom:1px solid var(--border); font-size:11.5px; color:var(--muted); font-family:var(--mono); }
+.cb-lang { text-transform:lowercase; letter-spacing:.4px; }
+.cb-actions { position:absolute; top:7px; right:9px; z-index:3; display:flex; gap:6px; }
+.cb-btn {
+  border:1px solid var(--border-strong); background:rgba(14,20,18,.94); color:var(--muted);
+  border-radius:7px; padding:4px 10px; font-size:11.5px; white-space:nowrap;
+  box-shadow:0 2px 8px rgba(0,0,0,.35); transition:all .16s;
+}
+.cb-btn:hover { color:var(--accent); border-color:var(--accent); background:var(--accent-glow); }
+.cb-btn.cb-copy { color:var(--accent); border-color:rgba(52,216,115,.5); background:rgba(52,216,115,.12); }
+.cb-btn.cb-copy:hover { background:rgba(52,216,115,.22); border-color:var(--accent); }
+.cb-btn.copied { color:#06130a; background:var(--accent); border-color:var(--accent); font-weight:600; }
+.copy-all { margin:10px 0 4px; border:1px solid var(--border-strong); background:var(--bg-soft); color:var(--accent); border-radius:8px; padding:6px 14px; font-size:12px; }
+.copy-all:hover { border-color:var(--accent); background:var(--accent-glow); }
+.codeblock pre { padding:13px 15px; padding-top:16px; font-family:var(--mono); font-size:12.5px; line-height:1.6; white-space:pre-wrap; overflow-wrap:break-word; }
+.placeholder { color:var(--muted-2); text-align:center; padding:60px 30px; }
+.placeholder .big { font-size:34px; margin-bottom:12px; }
+.cursor-blink { display:inline-block; width:8px; height:15px; background:var(--accent); vertical-align:-2px; animation:blink 1s step-end infinite; }
+@keyframes blink { 50% { opacity:0; } }
+.chat-foot { display:flex; gap:8px; padding:10px 14px; border-top:1px solid var(--border); align-items:center; }
+.stop-btn { border:1px solid var(--danger); color:var(--danger); background:transparent; border-radius:7px; padding:5px 14px; font-size:12px; display:none; }
+.stop-btn.show { display:inline-block; }
+.err-box { border:1px solid rgba(255,107,107,.4); background:rgba(255,107,107,.08); color:var(--danger); border-radius:10px; padding:10px 14px; font-size:13px; margin-bottom:14px; }
+.err-retry { margin-left:12px; border:1px solid var(--danger); color:var(--danger); background:transparent; border-radius:7px; padding:3px 11px; font-size:12px; }
+.err-retry:hover { background:rgba(255,107,107,.12); }
+.thinking { color:#9fb8aa; font-size:13.5px; padding:6px 0; }
+.thinking-tip { color:var(--muted-2); font-size:12px; margin-top:8px; line-height:1.6; }
+
+#toast { position:fixed; bottom:32px; left:50%; transform:translateX(-50%) translateY(20px); background:#152019; border:1px solid var(--border-strong); color:var(--text); padding:11px 22px; border-radius:10px; font-size:13.5px; opacity:0; pointer-events:none; transition:all .25s; z-index:99; }
+</style>
+</head>
+<body>
+
+<nav class="nav">
+  <div class="logo">
+    <span class="logo-mark">
+      <svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round">
+        <path d="M12 2.8 20.5 7.4v9.2L12 21.2 3.5 16.6V7.4L12 2.8Z"></path>
+        <path d="M3.5 7.4 12 12l8.5-4.6M12 12v9.2"></path>
+      </svg>
+    </span>
+    <span>AI创物工厂<span class="cross">×</span>AI编码</span>
+  </div>
+  <div class="nav-spacer"></div>
+  <span style="font-size:12.5px;color:var(--muted)"><span class="status-dot" id="cloudDot"></span><span id="cloudText">连接模型中…</span></span>
+  <select class="model-sel" id="modelSel"><option value="kimi-k3">kimi-k3</option></select>
+</nav>
+
+<div class="wrap">
+
+  <!-- 左 1/4：需求描述（上） + AI 助手（下） -->
+  <div class="col">
+    <div class="panel req-panel">
+      <div class="panel-head"><span class="dot"></span><b>需求描述</b><span style="margin-left:auto;font-size:11.5px">支持中文，越具体效果越好</span></div>
+      <textarea class="req-area" id="reqInput" placeholder="描述你要的开发需求，例如：
+· 写一个 Node.js 接口：读取 users.json，支持分页和按姓名搜索
+· 用 Python 写一个批量重命名图片的脚本，按拍摄日期归档
+· 做一个 React 登录表单，带校验和错误提示"></textarea>
+      <div class="flow-grid">
+        <button class="flow-btn main" id="btnGen" onclick="runFlow('generate')">
+          <span class="ic">⚡</span><span><span class="t">生成代码</span><br><span class="d">根据需求描述，直接产出可维护的代码 + 实现说明</span></span>
+        </button>
+        <button class="flow-btn" id="btnRef" onclick="runFlow('refactor')">
+          <span class="ic">♻️</span><span><span class="t">重构优化</span><br><span class="d">优化右侧代码结构与可读性</span></span>
+        </button>
+        <button class="flow-btn" id="btnDbg" onclick="runFlow('debug')">
+          <span class="ic">🐛</span><span><span class="t">调试修复</span><br><span class="d">找出 Bug 并给出修复版</span></span>
+        </button>
+        <button class="flow-btn" id="btnDoc" onclick="runFlow('doc')" style="grid-column:span 2">
+          <span class="ic">📄</span><span><span class="t">文档整理</span><br><span class="d">为右侧代码生成注释、模块说明与使用示例</span></span>
+        </button>
+      </div>
+    </div>
+
+    <div class="panel chat-panel">
+      <div class="panel-head"><span class="dot"></span><b>AI 助手</b><span style="margin-left:auto;font-size:11.5px" id="turnMeta"></span></div>
+      <div class="chat-body" id="chatBody">
+        <div class="placeholder">
+          <div class="big">⌨️</div>
+          在上方描述需求，点击「<b style="color:var(--accent)">生成代码</b>」开始；<br>
+          代码会出现在右侧编辑器，点「<b style="color:var(--accent)">▶ 运行代码</b>」可直接看输出与报错；<br>
+          也可以粘贴已有代码，使用「重构优化 / 调试修复 / 文档整理」。AI 会记住上下文，可继续追问。
+        </div>
+      </div>
+      <div class="chat-foot">
+        <button class="stop-btn" id="stopBtn" onclick="stopGen()">■ 停止生成</button>
+        <div style="flex:1"></div>
+        <button class="mini-btn" onclick="clearChat()">清空对话</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- 右 1/2：代码编辑器（全高） -->
+  <div class="col">
+    <div class="panel editor-panel">
+      <div class="panel-head"><span class="dot"></span><b>代码编辑器</b><span style="margin-left:auto;font-size:11.5px" id="editorMeta">空 · 可手动粘贴代码</span></div>
+      <div class="editor-wrap">
+        <div class="gutter" id="gutter">1</div>
+        <pre class="highlight" id="highlight" aria-hidden="true"></pre>
+        <textarea id="editor" spellcheck="false" placeholder="// 生成的代码会出现在这里，也可以直接粘贴你已有的代码
+// 然后使用「重构优化 / 调试修复 / 文档整理」"></textarea>
+      </div>
+      <div class="editor-tools">
+        <button class="mini-btn run" id="runBtn" onclick="runCode()">▶ 运行代码</button>
+        <select class="tool-sel" id="runLang" title="运行语言">
+          <option value="auto">自动识别</option>
+          <option value="js">JavaScript</option>
+          <option value="python">Python</option>
+          <option value="html">HTML 页面</option>
+        </select>
+        <div style="flex:1"></div>
+        <button class="mini-btn" onclick="copyCode()">复制代码</button>
+        <button class="mini-btn" onclick="downloadCode()">下载文件</button>
+        <button class="mini-btn" onclick="clearEditor()">清空</button>
+      </div>
+      <div class="console" id="console">
+        <div class="console-head"><b>运行输出</b><span id="runStatus">就绪</span><div style="flex:1"></div><button class="mini-btn" onclick="clearConsole()">清空输出</button></div>
+        <div class="console-body" id="consoleBody"></div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<div id="toast"></div>
+
+<script>
+/* ============ 自定义模型：kimi-k3（由服务端 /api/llm 代理调用） ============ */
+const MODEL_ID = 'kimi-k3';
+
+const SYSTEM_PROMPT = '你是「AI编码工作台」的资深软件工程师助手，服务对象是个人开发者与工程团队。'
+  + '职责：把需求描述转化为结构清晰、可维护、带错误处理的生产级代码。'
+  + '规则：始终用简体中文回复；代码放在 markdown 围栏代码块中并标注语言；'
+  + '先给完整可用代码，再给简短的实现说明与注意事项；不要编造不存在的 API。'
+  + '代码必须完整、自包含、可直接运行：不要省略、不要写「其余代码不变」或占位注释、不要依赖未声明的变量与文件；'
+  + '如果确实需要外部依赖或只能在特定环境（Node/浏览器/命令行）运行，必须在代码前用一句话写明运行方式和安装命令。'
+  + '排版规则（重要）：解释性内容必须分段呈现——每个要点单独用 ### 小标题开头，'
+  + '标题下用 1-3 句短文字说明「问题是什么 / 怎么改 / 为什么」，段与段之间留空行；'
+  + '严禁把多个要点挤进一个连续的大段编号列表或一整段文字里；'
+  + '要点较多时按「语法错误 / 逻辑缺陷 / 安全性 / 可维护性」分组；'
+  + '需要罗列时用短列表，每项单独一行且不超过两句话。'
+  + '不要复述用户粘贴的原始代码，只输出修复后的完整代码与说明。';
+let conversationId = 'conv-' + Date.now().toString(36) + '-' + Math.random().toString(36).slice(2, 8);
+let chatHistory = [];   // 应用自管的多轮上下文（不含 system）
+let generating = false;
+let controller = null;
+
+/* ============ 初始化：仅一个自定义模型，检查服务端 Key 是否配置 ============ */
+let modelId = MODEL_ID;
+(async function init() {
+  document.getElementById('modelSel').innerHTML = '<option value="kimi-k3">kimi-k3</option>';
+  try {
+    const r = await fetch('/api/health');
+    const s = await r.json();
+    document.getElementById('cloudText').textContent = s.configured ? 'kimi-k3 已就绪' : 'kimi-k3 · 未配置 API Key';
+    if (s.configured) document.getElementById('cloudDot').classList.add('ok');
+    else toast('请先在服务端配置 Kimi API Key');
+  } catch (e) {
+    document.getElementById('cloudText').textContent = 'kimi-k3 · 服务未连接';
+  }
+})();
+
+/* ============ 安全转义：站点网关(WAF)会拦截 XSS 特征字符串 ============
+   发送前把代码里的危险片段换成语义化标记，服务端 /api/llm 会还原后再发给 kimi-k3。 */
+function maskForCloud(text, strict) {
+  let t = String(text);
+  t = t.replace(/\beval\b/gi, '⟦KW_EVAL⟧')
+       .replace(/\balert\b/gi, '⟦KW_ALERT⟧')
+       .replace(/\bprompt\b/gi, '⟦KW_PROMPT⟧')
+       .replace(/\bconfirm\b/gi, '⟦KW_CONFIRM⟧')
+       .replace(/\bon([a-z]{3,15})\s*=/gi, '⟦EVT_ON⟧$1⟦EQ⟧')
+       .replace(/javascript\s*:/gi, '⟦JS_SCHEME⟧')
+       .replace(/union\s+select/gi, '⟦SQL_UNION⟧')
+       .replace(/'\s*or\s+1\s*=\s*1/gi, '⟦SQL_OR⟧')
+       .replace(/\$\{jndi\s*:/gi, '⟦JNDI⟧')
+       .replace(/\.\.\//g, '⟦PATH_UP⟧')
+       .replace(/</g, '⟦LT⟧').replace(/>/g, '⟦GT⟧');
+  if (strict) {
+    t = t.replace(/\(/g, '⟦LP⟧').replace(/\)/g, '⟦RP⟧').replace(/"/g, '⟦QUOT⟧');
+  }
+  return t;
+}
+function unmask(text) {
+  return String(text)
+    .replace(/⟦KW_EVAL⟧/g, 'eval').replace(/⟦KW_ALERT⟧/g, 'alert')
+    .replace(/⟦KW_PROMPT⟧/g, 'prompt').replace(/⟦KW_CONFIRM⟧/g, 'confirm')
+    .replace(/⟦EVT_ON⟧([a-z]+)⟦EQ⟧/g, 'on$1=')
+    .replace(/⟦JS_SCHEME⟧/g, 'javascript:').replace(/⟦SQL_UNION⟧/g, 'UNION SELECT')
+    .replace(/⟦SQL_OR⟧/g, "' OR 1=1").replace(/⟦JNDI⟧/g, '${jndi:')
+    .replace(/⟦PATH_UP⟧/g, '../')
+    .replace(/⟦LT⟧/g, '<').replace(/⟦GT⟧/g, '>')
+    .replace(/⟦LP⟧/g, '(').replace(/⟦RP⟧/g, ')').replace(/⟦QUOT⟧/g, '"');
+}
+function isWafBlock(e) {
+  return e && (e.status === 403 || /WAF|Web应用防护|<!DOCTYPE html/i.test(String(e.message || '')));
+}
+
+/* ============ 四大开发流程 ============ */
+const FLOWS = {
+  generate: {
+    btn: 'btnGen', label: '⚡ 生成代码',
+    build() {
+      const req = document.getElementById('reqInput').value.trim();
+      if (!req) { toast('请先在左侧描述你的需求'); return null; }
+      return `请根据以下需求编写高质量、可维护的完整代码，并附上简要实现说明、依赖与运行方式：\n\n【需求描述】\n${req}`;
+    },
+    needCode: false,
+  },
+  refactor: {
+    btn: 'btnRef', label: '♻️ 重构优化',
+    build() {
+      const code = editor.value.trim();
+      if (!code) { toast('编辑器为空：请先生成代码，或粘贴你想重构的代码'); return null; }
+      return '请重构以下代码：提升可读性、结构与性能，保持行为不变。给出重构后的完整代码，并把改动说明按分段式组织：每个改动点用 ### 小标题单独成段，说明改了什么、为什么改，段间留空行，不要写成一长串编号：\n\n```\n' + code + '\n```';
+    },
+    needCode: true,
+  },
+  debug: {
+    btn: 'btnDbg', label: '🐛 调试修复',
+    build() {
+      const code = editor.value.trim();
+      if (!code) { toast('编辑器为空：请先生成代码，或粘贴需要调试的代码'); return null; }
+      return '请调试以下代码：找出 Bug、隐患与边界问题，给出修复后的完整代码。改动说明必须分段式：每个问题用 ### 小标题（如「### 1. 赋值写成了比较」）单独成段，标题下分「问题」「修复」「原因」三句短说明，段间留空行；不要把所有问题塞进一个连续的 1~9 大列表：\n\n```\n' + code + '\n```';
+    },
+    needCode: true,
+  },
+  doc: {
+    btn: 'btnDoc', label: '📄 文档整理',
+    build() {
+      const code = editor.value.trim();
+      if (!code) { toast('编辑器为空：请先生成代码，或粘贴需要写文档的代码'); return null; }
+      return '请为以下代码生成文档：包含模块功能说明、关键函数的注释版代码、参数与返回值说明、使用示例。各部分用 ### 小标题分段，段间留空行，不要连成一大段：\n\n```\n' + code + '\n```';
+    },
+    needCode: true,
+  },
+};
+
+async function streamOnce(messages, onDelta, signal) {
+  const r = await fetch('/api/llm', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ model: MODEL_ID, messages }),
+    signal,
+  });
+  if (!r.ok) {
+    let msg = '模型服务错误 ' + r.status;
+    try { const j = await r.json(); if (j.error) msg = j.error; } catch { /* 非 JSON */ }
+    throw new Error(msg);
+  }
+  const reader = r.body.getReader();
+  const decoder = new TextDecoder();
+  let answer = '';
+  while (true) {
+    const { done, value } = await reader.read();
+    if (done) break;
+    answer += decoder.decode(value, { stream: true });
+    const errAt = answer.indexOf('\u0000ERR:');
+    if (errAt >= 0) {
+      onDelta(answer.slice(0, errAt).replace(/\u0000/g, ''));
+      throw new Error(answer.slice(errAt + 5).trim() || '模型调用失败');
+    }
+    onDelta(answer.replace(/\u0000/g, ''));
+  }
+  return answer.replace(/\u0000/g, '');
+}
+
+async function runFlow(kind) {
+  if (generating) { toast('正在生成中，请先点击「停止生成」'); return; }
+  if (!modelId) { toast('模型尚未就绪，请稍候或刷新页面'); return; }
+  const flow = FLOWS[kind];
+  const prompt = flow.build();
+  if (!prompt) return;
+
+  setGenerating(true);
+  const body = addMsg('ai', flow.label);
+  const contentEl = body.querySelector('.content');
+  contentEl.innerHTML = '<span class="cursor-blink"></span>';
+
+  const safePrompt = maskForCloud(prompt);
+  const buildMessages = (strict) => [
+    { role: 'system', content: SYSTEM_PROMPT },
+    ...chatHistory.slice(-10).map(m => ({ ...m, content: strict ? maskForCloud(m.content, true) : m.content })),
+    { role: 'user', content: strict ? maskForCloud(prompt, true) : safePrompt },
+  ];
+
+  controller = new AbortController();
+  let answer = '', sentPrompt = safePrompt;
+  let waitSec = 0, gotFirst = false;
+  const waitTimer = setInterval(() => {
+    if (gotFirst) return;
+    waitSec += 1;
+    if (waitSec >= 3) {
+      contentEl.innerHTML = '<div class="thinking">🧠 模型正在思考… 已等待 ' + waitSec + ' 秒<span class="cursor-blink"></span>'
+        + '<div class="thinking-tip">你的自定义模型是推理型，长代码通常要 30–60 秒；服务端已开启超时自动重试，请稍候。</div></div>';
+    }
+  }, 1000);
+  const onDelta = a => { gotFirst = true; renderStream(contentEl, unmask(a)); };
+  try {
+    try {
+      answer = await streamOnce(buildMessages(false), onDelta, controller.signal);
+    } catch (firstErr) {
+      if (e_aborted(firstErr)) throw firstErr;
+      if (!isWafBlock(firstErr)) throw firstErr;
+      // 命中安全网关：自动用更严格的转义模式重试一次
+      toast('内容触发安全网关，已自动切换安全模式重试');
+      answer = ''; gotFirst = false; waitSec = 0;
+      sentPrompt = maskForCloud(prompt, true);
+      answer = await streamOnce(buildMessages(true), onDelta, controller.signal);
+    }
+    const shown = unmask(answer);
+    contentEl.innerHTML = mdRender(shown, true);
+    chatHistory.push({ role: 'user', content: sentPrompt }, { role: 'assistant', content: answer });
+    updateTurnMeta();
+    if (kind === 'generate' && !editor.value.trim()) {
+      const blocks = extractCode(shown).sort((a, b) => b.length - a.length);
+      if (blocks.length) setEditor(blocks[0]);
+    }
+  } catch (e) {
+    if (e_aborted(e)) {
+      contentEl.innerHTML = mdRender(unmask(answer) || '_（已停止生成）_', true);
+    } else {
+      const box = document.createElement('div');
+      box.className = 'err-box';
+      box.textContent = '生成失败：' + errText(e) + (answer ? '（已保留部分内容）' : '');
+      const retry = document.createElement('button');
+      retry.className = 'err-retry';
+      retry.textContent = '↻ 重试';
+      retry.onclick = () => { body.remove(); runFlow(kind); };
+      box.appendChild(retry);
+      contentEl.insertBefore(box, contentEl.firstChild);
+      if (answer) {
+        const restored = document.createElement('div');
+        restored.innerHTML = mdRender(unmask(answer), true);
+        contentEl.insertBefore(restored, box.nextSibling);
+      }
+    }
+  } finally {
+    clearInterval(waitTimer);
+    setGenerating(false);
+    controller = null;
+  }
+}
+function e_aborted(e) { return e && (e.name === 'AbortError' || e.code === 'ABORT_ERR'); }
+
+function setGenerating(on) {
+  generating = on;
+  ['btnGen','btnRef','btnDbg','btnDoc'].forEach(id => document.getElementById(id).disabled = on);
+  document.getElementById('stopBtn').classList.toggle('show', on);
+}
+function stopGen() { if (controller) controller.abort(); }
+
+/* ============ 聊天渲染 ============ */
+function addMsg(cls, who) {
+  const chat = document.getElementById('chatBody');
+  const ph = chat.querySelector('.placeholder');
+  if (ph) ph.remove();
+  const div = document.createElement('div');
+  div.className = 'msg ' + cls;
+  div.innerHTML = `<div class="who">${esc(who)}</div><div class="content"></div>`;
+  chat.appendChild(div);
+  chat.scrollTop = chat.scrollHeight;
+  return div;
+}
+let renderTimer = null;
+function renderStream(el, text) {
+  if (renderTimer) return;
+  renderTimer = setTimeout(() => {
+    renderTimer = null;
+    el.innerHTML = mdRender(text, false) + '<span class="cursor-blink"></span>';
+    const chat = document.getElementById('chatBody');
+    chat.scrollTop = chat.scrollHeight;
+  }, 60);
+}
+
+// 分段式 Markdown 渲染：代码块 / 小标题 / 编号列表 / 表格 / 段落，全部拉开间距
+function mdRender(text, final) {
+  const blocks = [];
+  const pushBlock = (lang, code, pending) => {
+    const actions = '<div class="cb-actions">'
+      + (final ? '<button class="cb-btn cb-apply" onclick="applyBlock(this)">⬇ 应用</button>' : '')
+      + '<button class="cb-btn cb-copy" onclick="copyBlock(this)">⧉ 复制</button>'
+      + '</div>';
+    const label = esc(lang || 'code') + (pending ? ' · 生成中…' : '');
+    return `<div class="codeblock"><div class="cb-head"><span class="cb-lang">${label}</span></div>${actions}<pre>${esc(code)}</pre></div>`;
+  };
+  // 先把围栏代码块抽出来，避免内容被后续的行级规则破坏
+  let src = String(text).replace(/```(\w*)\n([\s\S]*?)```/g, (_, lang, code) => {
+    const i = blocks.push(pushBlock(lang, code, false)) - 1;
+    return `\n\u0001B${i}\u0001\n`;
+  });
+  if (!final) {
+    src = src.replace(/```(\w*)\n([\s\S]*)$/, (_, lang, code) => {
+      const i = blocks.push(pushBlock(lang, code, true)) - 1;
+      return `\n\u0001B${i}\u0001\n`;
+    });
+  }
+  const lines = esc(src).split('\n');
+  let html = '', para = [], list = null, table = [];
+  const inline = s => s
+    .replace(/`([^`]+)`/g, '<code class="inline">$1</code>')
+    .replace(/\*\*([^*\n]+)\*\*/g, '<b>$1</b>');
+  const flushPara = () => { if (para.length) { html += '<p>' + inline(para.join('<br>')) + '</p>'; para = []; } };
+  const flushList = () => {
+    if (list) { html += `<${list.tag} class="md-list">` + list.items.map(i => `<li>${inline(i)}</li>`).join('') + `</${list.tag}>`; list = null; }
+  };
+  const flushTable = () => {
+    if (!table.length) return;
+    const rows = table.filter(r => !/^\|[\s:|-]+\|$/.test(r))
+      .map(r => r.replace(/^\||\|$/g, '').split('|').map(c => c.trim()));
+    if (rows.length) {
+      html += '<table class="md-table"><thead><tr>' + rows[0].map(c => `<th>${inline(c)}</th>`).join('') + '</tr></thead><tbody>'
+        + rows.slice(1).map(r => '<tr>' + r.map(c => `<td>${inline(c)}</td>`).join('') + '</tr>').join('') + '</tbody></table>';
+    }
+    table = [];
+  };
+  for (const raw of lines) {
+    const t = raw.trim();
+    const bm = t.match(/^\u0001B(\d+)\u0001$/);
+    if (bm) { flushPara(); flushList(); flushTable(); html += blocks[+bm[1]] || ''; continue; }
+    if (!t) { flushPara(); flushList(); flushTable(); continue; }
+    if (/^\|.*\|$/.test(t)) { flushPara(); flushList(); table.push(t); continue; }
+    flushTable();
+    const h = t.match(/^#{1,4}\s+(.+)$/);
+    if (h) { flushPara(); flushList(); html += `<h3>${inline(h[1])}</h3>`; continue; }
+    const ol = t.match(/^(\d+)[.)、]\s*(.+)$/);
+    const ul = t.match(/^[-*·]\s+(.+)$/);
+    if (ol || ul) {
+      flushPara();
+      const tag = ol ? 'ol' : 'ul';
+      if (!list || list.tag !== tag) { flushList(); list = { tag, items: [] }; }
+      list.items.push(ol ? ol[2] : ul[1]);
+      continue;
+    }
+    flushList();
+    para.push(t);
+  }
+  flushPara(); flushList(); flushTable();
+  if (final && blocks.length > 1) {
+    html += `<button class="copy-all" onclick="copyAllBlocks(this)">⧉ 复制全部代码（${blocks.length} 段）</button>`;
+  }
+  return html;
+}
+function extractCode(text) {
+  const out = [];
+  const re = /```\w*\n([\s\S]*?)```/g;
+  let m; while ((m = re.exec(text))) out.push(m[1].replace(/\s+$/, ''));
+  return out;
+}
+function applyBlock(btn) {
+  const pre = btn.closest('.codeblock').querySelector('pre');
+  setEditor(pre.textContent.replace(/\n$/, ''));
+  toast('代码已应用到右侧编辑器，可点「▶ 运行代码」直接验证');
+}
+
+/* 复制：优先 Clipboard API，失败时回退到 execCommand（兼容非安全上下文） */
+async function copyText(text) {
+  if (!text) { toast('没有可复制的代码'); return false; }
+  try {
+    if (navigator.clipboard && window.isSecureContext) {
+      await navigator.clipboard.writeText(text);
+      return true;
+    }
+  } catch { /* 继续用回退方案 */ }
+  try {
+    const ta = document.createElement('textarea');
+    ta.value = text;
+    ta.style.position = 'fixed'; ta.style.opacity = '0'; ta.style.left = '-9999px';
+    document.body.appendChild(ta);
+    ta.focus(); ta.select();
+    const ok = document.execCommand('copy');
+    ta.remove();
+    if (ok) return true;
+  } catch { /* 忽略 */ }
+  toast('复制失败，请手动选中代码复制');
+  return false;
+}
+function markCopied(btn, label) {
+  if (!btn) return;
+  const old = btn.textContent;
+  btn.textContent = label || '✓ 已复制';
+  btn.classList.add('copied');
+  setTimeout(() => { btn.textContent = old; btn.classList.remove('copied'); }, 1600);
+}
+async function copyBlock(btn) {
+  const pre = btn.closest('.codeblock').querySelector('pre');
+  const code = pre.textContent.replace(/\n$/, '');
+  if (await copyText(code)) {
+    markCopied(btn, '✓ 已复制');
+    toast('代码已复制到剪贴板');
+  }
+}
+async function copyAllBlocks(btn) {
+  const pres = btn.closest('.content').querySelectorAll('.codeblock pre');
+  const all = Array.from(pres).map(p => p.textContent.replace(/\n$/, '')).join('\n\n');
+  if (await copyText(all)) {
+    markCopied(btn, `✓ 已复制 ${pres.length} 段代码`);
+    toast(`已复制 ${pres.length} 段代码到剪贴板`);
+  }
+}
+function updateTurnMeta() { document.getElementById('turnMeta').textContent = `本轮对话 ${chatHistory.length / 2} 轮 · 上下文已记忆`; }
+function clearChat() {
+  chatHistory = [];
+  conversationId = 'conv-' + Date.now().toString(36) + '-' + Math.random().toString(36).slice(2, 8);
+  document.getElementById('chatBody').innerHTML = '<div class="placeholder"><div class="big">⌨️</div>对话已清空，开始新的需求吧。</div>';
+  document.getElementById('turnMeta').textContent = '';
+}
+
+/* ============ 编辑器（行号 + 高亮） ============ */
+const editor = document.getElementById('editor');
+const gutter = document.getElementById('gutter');
+const highlight = document.getElementById('highlight');
+const KW = /\b(function|const|let|var|return|if|else|for|while|switch|case|break|continue|new|class|extends|import|from|export|default|async|await|try|catch|finally|throw|typeof|instanceof|def|elif|None|True|False|self|print|lambda|with|as|pass|yield|global|int|str|float|bool|public|static|void|private|include|namespace|using|template|struct|SELECT|FROM|WHERE|INSERT|UPDATE|DELETE)\b/g;
+function esc(s) { return s.replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;'); }
+
+function renderHighlight() {
+  let html = esc(editor.value);
+  const store = [];
+  html = html.replace(/(\/\/[^\n]*|#[^\n]*)/g, m => { store.push('<span class="cm">' + m + '</span>'); return '\u0000' + (store.length-1) + '\u0000'; });
+  html = html.replace(/(&quot;.*?&quot;|&#39;.*?&#39;|`[^`]*`)/g, m => { store.push('<span class="str">' + m + '</span>'); return '\u0000' + (store.length-1) + '\u0000'; });
+  html = html.replace(KW, '<span class="kw">$1</span>');
+  html = html.replace(/\b(\d+(\.\d+)?)\b/g, '<span class="num">$1</span>');
+  html = html.replace(/\b([a-zA-Z_$][\w$]*)(?=\s*\()/g, '<span class="fn">$1</span>');
+  html = html.replace(/\u0000(\d+)\u0000/g, (_, i) => store[+i]);
+  highlight.innerHTML = html + '\n';
+  const lines = editor.value.split('\n').length;
+  gutter.textContent = Array.from({ length: lines }, (_, i) => i + 1).join('\n');
+  highlight.scrollTop = editor.scrollTop; highlight.scrollLeft = editor.scrollLeft; gutter.scrollTop = editor.scrollTop;
+  document.getElementById('editorMeta').textContent = editor.value.trim() ? `${lines} 行 · ${editor.value.length} 字符` : '空 · 可手动粘贴代码';
+}
+editor.addEventListener('input', renderHighlight);
+editor.addEventListener('scroll', renderHighlight);
+editor.addEventListener('keydown', e => {
+  if (e.key === 'Tab') {
+    e.preventDefault();
+    const s = editor.selectionStart, en = editor.selectionEnd;
+    editor.value = editor.value.slice(0, s) + '  ' + editor.value.slice(en);
+    editor.selectionStart = editor.selectionEnd = s + 2;
+    renderHighlight();
+  }
+});
+function setEditor(code) { editor.value = code; renderHighlight(); }
+function clearEditor() { editor.value = ''; renderHighlight(); }
+async function copyCode() { if (!editor.value) return toast('编辑器为空'); if (await copyText(editor.value)) toast('代码已复制到剪贴板'); }
+function downloadCode() {
+  if (!editor.value) return toast('编辑器为空');
+  const isPy = /^\s*(def\s|import\s|from\s+\w+\s+import|print\s*\()/m.test(editor.value);
+  const isHtml = /^\s*(<!doctype|<html|<head|<body|<div|<style|<script)/im.test(editor.value);
+  const ext = isPy ? 'py' : isHtml ? 'html' : 'js';
+  const a = document.createElement('a');
+  a.href = URL.createObjectURL(new Blob([editor.value], { type: 'text/plain' }));
+  a.download = 'code.' + ext; a.click(); URL.revokeObjectURL(a.href);
+}
+
+/* ============ 运行代码：浏览器沙箱真实执行 ============ */
+const RUN_WORKER_SRC = [
+  'const fmt = (v) => { try { if (typeof v === "string") return v; const s = JSON.stringify(v, null, 2); return s === undefined ? String(v) : s; } catch { return String(v); } };',
+  'self.onmessage = async (e) => {',
+  '  const code = e.data.code;',
+  '  const send = (type, text) => self.postMessage({ type, text: String(text) });',
+  '  const mk = (type) => (...a) => send(type, a.map(fmt).join(" "));',
+  '  const con = { log: mk("log"), info: mk("log"), debug: mk("log"), warn: mk("warn"), error: mk("error"), table: mk("log") };',
+  '  const deny = () => { throw new Error("[沙箱限制] 运行环境禁止访问网络、文件系统和 Node 内置模块。\\n这类代码请复制后在本机执行：node 文件名.js"); };',
+  '  const names = ["console","fetch","XMLHttpRequest","WebSocket","EventSource","importScripts","require","process","self","globalThis","window","document","localStorage","sessionStorage","navigator","postMessage"];',
+  '  try {',
+  '    const fn = new Function(...names, "return (async () => {\\n" + code + "\\n})()");',
+  '    const args = names.map(n => n === "console" ? con : deny);',
+  '    const r = await fn(...args);',
+  '    if (r !== undefined) send("log", "返回值: " + fmt(r));',
+  '    self.postMessage({ type: "done" });',
+  '  } catch (err) {',
+  '    send("error", (err && err.stack) || String(err));',
+  '    self.postMessage({ type: "done" });',
+  '  }',
+  '};',
+].join('\n');
+
+function out(type, text) {
+  const el = document.getElementById('consoleBody');
+  const d = document.createElement('div');
+  d.className = 'l-' + type;
+  d.textContent = String(text);
+  el.appendChild(d);
+  el.scrollTop = el.scrollHeight;
+}
+function clearConsole() { document.getElementById('consoleBody').innerHTML = ''; }
+
+function runJS(code) {
+  return new Promise(resolve => {
+    const blob = new Blob([RUN_WORKER_SRC], { type: 'application/javascript' });
+    const url = URL.createObjectURL(blob);
+    const w = new Worker(url);
+    let finished = false, hadError = false;
+    const finish = (ok) => {
+      if (finished) return;
+      finished = true; clearTimeout(timer); w.terminate(); URL.revokeObjectURL(url); resolve(ok && !hadError);
+    };
+    const timer = setTimeout(() => { out('error', '运行超时（5 秒），已强制停止。检查是否有死循环或 never-resolve 的 Promise。'); hadError = true; finish(false); }, 5000);
+    w.onmessage = (e) => {
+      const m = e.data;
+      if (m.type === 'done') return finish(true);
+      if (m.type === 'error') {
+        hadError = true;
+        out('error', m.text);
+        if (/Unexpected token ['"]?</.test(m.text)) {
+          out('warn', '这段代码看起来是 HTML/CSS，不是 JavaScript。请在上方「运行语言」里选「HTML 页面」，或复制保存为 .html 用浏览器打开。');
+        }
+        return;
+      }
+      out(m.type, m.text);
+    };
+    w.onerror = (e) => { out('error', e.message || '脚本执行出错'); hadError = true; finish(false); };
+    w.postMessage({ code });
+  });
+}
+
+function loadScript(src) {
+  return new Promise((resolve, reject) => {
+    if (window.loadPyodide) return resolve();
+    const s = document.createElement('script');
+    s.src = src; s.onload = resolve;
+    s.onerror = () => reject(new Error('Python 运行时加载失败，请检查网络'));
+    document.head.appendChild(s);
+  });
+}
+async function ensurePyodide() {
+  if (window._pyodide) return window._pyodide;
+  const base = 'https://cdn.jsdelivr.net/pyodide/v0.27.7/full/';
+  out('info', '首次运行 Python 需下载运行时（约 10MB），请稍候…');
+  await loadScript(base + 'pyodide.js');
+  window._pyodide = await window.loadPyodide({ indexURL: base });
+  return window._pyodide;
+}
+async function runPythonCode(code) {
+  let py;
+  try { py = await ensurePyodide(); }
+  catch (e) { out('error', e.message); return false; }
+  py.setStdout({ batched: s => out('log', s) });
+  py.setStderr({ batched: s => out('warn', s) });
+  try {
+    const task = py.runPythonAsync(code);
+    const timeout = new Promise((_, rej) => setTimeout(() => rej(new Error('运行超时（20 秒），已停止等待')), 20000));
+    await Promise.race([task, timeout]);
+    return true;
+  } catch (e) { out('error', String(e && e.message || e)); return false; }
+}
+
+/* HTML 页面：在隔离 iframe 里真实渲染，并把页面内 console 输出转回运行面板 */
+window.addEventListener('message', (e) => {
+  const d = e.data;
+  if (d && d.__previewLog) {
+    out(d.__previewLog === 'error' ? 'error' : d.__previewLog === 'warn' ? 'warn' : 'log', String(d.text));
+  }
+});
+const PREVIEW_HOOK = '<script>(function(){'
+  + '["log","warn","error","info"].forEach(function(k){var o=console[k];'
+  + 'console[k]=function(){try{parent.postMessage({__previewLog:k,text:Array.prototype.map.call(arguments,String).join(" ")},"*")}catch(e){};'
+  + 'o.apply(console,arguments)}});})();<\/script>';
+const HTML_START = /^(?:<!doctype\s+html|<html|<head|<body|<div|<style|<script|<h[1-6]|<p(?=[\s>])|<button|<section|<table|<form|<svg|<ul|<main|<header|<footer)/i;
+function runHTML(code) {
+  const head = code.trimStart();
+  // 防呆：明显是 JS/Node 脚本时绝不塞进 iframe，否则源码会被当页面文本渲染出来
+  if (!HTML_START.test(head) && /\b(require\s*\(|const\s+\w+\s*=|let\s+\w+\s*=|function\s+\w+|=>|process\.|console\.log)/.test(code)) {
+    out('error', '这段内容是 JavaScript / Node.js 代码，不是 HTML 页面，不能当网页预览。');
+    out('info', '请在上方「运行语言」选 JavaScript；若代码用了 fs、path、读写文件等 Node 模块，浏览器沙箱跑不了，请复制代码到本地执行：node 文件名.js');
+    return false;
+  }
+  let doc;
+  if (/^(?:<!doctype\s+html|<html|<head|<body)\b/i.test(head)) {
+    doc = /<head[^>]*>/i.test(code)
+      ? code.replace(/<head[^>]*>/i, m => m + PREVIEW_HOOK)
+      : PREVIEW_HOOK + code;
+  } else if (HTML_START.test(head)) {
+    doc = '<!DOCTYPE html><html><head><meta charset="utf-8">' + PREVIEW_HOOK
+      + '<style>body{font-family:system-ui;padding:16px;color:#222;background:#fff}</style></head><body>'
+      + code + '</body></html>';
+  } else {
+    out('warn', '纯 CSS 片段需要配合 HTML 结构才能预览；请把完整 HTML 代码放进编辑器再运行。');
+    return false;
+  }
+  const consoleEl = document.getElementById('console');
+  consoleEl.classList.add('preview-mode');
+  const box = document.createElement('div');
+  box.className = 'html-preview';
+  const f = document.createElement('iframe');
+  f.setAttribute('sandbox', 'allow-scripts allow-modals');
+  f.setAttribute('title', 'HTML 预览');
+  f.srcdoc = doc;
+  box.appendChild(f);
+  document.getElementById('consoleBody').appendChild(box);
+  out('ok', 'HTML 已在隔离沙箱中渲染（页面内的 console 输出会显示在这里）。');
+  return true;
+}
+
+function detectRunLang(code, choice) {
+  if (choice !== 'auto') return choice;
+  const head = code.trimStart();
+  // Python：整段里出现典型语句即可（JS 的 import x from 'y' 不会命中）
+  if (/^\s*(def\s+\w+\s*\(|from\s+[\w.]+\s+import|import\s+[\w.]+\s*$|print\s*\()/m.test(code)) return 'python';
+  // HTML：只看代码「开头」，不能因为 JS 模板字符串里出现 <div 就误判
+  if (HTML_START.test(head)) return 'html';
+  const jsHints = /\b(const|let|var|function|require\s*\(|=>|console\.log|process\.|export\s|class\s)/.test(code);
+  // 纯 CSS：无 JS 特征、且以「选择器 { 属性: 值 }」开头
+  if (!jsHints && /^[\w.#][\w\s,.:#>()-]*\{[^}]*:[^}]*\}/.test(head)) return 'html';
+  return 'js';
+}
+
+async function runCode() {
+  let code = editor.value.trim();
+  if (!code) return toast('编辑器为空：先生成或粘贴代码再运行');
+  const btn = document.getElementById('runBtn');
+  const status = document.getElementById('runStatus');
+  const consoleEl = document.getElementById('console');
+  consoleEl.classList.add('show');
+  consoleEl.classList.remove('preview-mode');
+  clearConsole();
+  btn.disabled = true;
+  status.textContent = '运行中…';
+  // 直接粘贴整段 AI 回复（含 markdown 围栏和说明）时，自动提取最完整的代码块
+  if (/^\s*```/.test(code)) {
+    const blocks = extractCode(code).sort((a, b) => b.length - a.length);
+    if (blocks.length) {
+      code = blocks[0];
+      out('info', `检测到粘贴内容含 markdown 代码围栏，已自动提取最长的代码块运行（${code.split('\n').length} 行）。`);
+    }
+  }
+  const lang = detectRunLang(code, document.getElementById('runLang').value);
+  const langName = { python: 'Python', js: 'JavaScript', html: 'HTML 页面' }[lang] || lang;
+  out('info', '▶ ' + langName + ' · ' + code.split('\n').length + ' 行');
+  if (lang === 'js' && /\brequire\s*\(|\bprocess\.|__dirname|\bfs\./.test(code)) {
+    out('info', '检测到 Node.js 内置模块：浏览器沙箱不能读写文件/网络，这类代码请复制到本地用 node 运行。');
+  }
+  if (lang === 'python' && /\b(requests|urllib|open\s*\(|os\.system|subprocess)\b/.test(code)) {
+    out('info', '检测到 I/O 相关模块：Python 浏览器运行时不支持本地文件与真实网络请求。');
+  }
+  const t0 = Date.now();
+  let ok = false;
+  try {
+    if (lang === 'python') ok = await runPythonCode(code);
+    else if (lang === 'html') ok = runHTML(code);
+    else ok = await runJS(code);
+  }
+  catch (e) { out('error', String(e && e.message || e)); }
+  status.textContent = (ok ? '✅ ' + (lang === 'html' ? '已渲染' : '执行完成') : '❌ 有错误') + ' · ' + ((Date.now() - t0) / 1000).toFixed(1) + 's';
+  if (ok && lang !== 'html') out('ok', '进程正常结束。');
+  btn.disabled = false;
+}
+
+/* ============ 通用 ============ */
+function errText(e) {
+  const code = e && e.error && e.error.code || '';
+  if (code.startsWith('quota_')) return e.error.code === 'quota_rate_limited' ? '请求过于频繁，请稍后重试' : '配额不足，请稍后再试或联系创建者';
+  if (code.startsWith('auth_')) return '云服务鉴权失败，请刷新页面重试';
+  if (code.startsWith('request_')) return '请求参数有误：' + cleanErrMsg(e.error && e.error.message);
+  if (code === 'gateway_stream_interrupted') return '连接中断，已保留已生成内容，可重试';
+  if (code.startsWith('gateway_') || code.startsWith('model_')) return '模型服务暂时不可用，请点击重试';
+  let msg = (e && e.message) || '未知错误';
+  // 错误信息里混入 HTML 错误页时，不要原样展示
+  if (/<[a-z!][^>]*>/i.test(msg)) return '服务暂时异常，请稍后重试';
+  return cleanErrMsg(msg);
+}
+function cleanErrMsg(msg) {
+  msg = String(msg || '').replace(/<[^>]*>/g, ' ').replace(/\s+/g, ' ').trim();
+  return msg.length > 160 ? msg.slice(0, 160) + '…' : msg;
+}
+function toast(msg) {
+  const t = document.getElementById('toast');
+  t.textContent = msg;
+  t.style.opacity = 1; t.style.transform = 'translateX(-50%) translateY(0)';
+  clearTimeout(t._h);
+  t._h = setTimeout(() => { t.style.opacity = 0; t.style.transform = 'translateX(-50%) translateY(20px)'; }, 2200);
+}
+renderHighlight();
+</script>
+</body>
+</html>

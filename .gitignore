@@ -1,0 +1,21 @@
+# 含真实 API Key 的配置，绝不提交
+model-config.json
+kimi-key.txt
+.env
+.env.*
+!.env.example
+
+# 依赖、日志、证书
+node_modules/
+*.log
+renew.log
+nginx/certs/
+letsencrypt/
+
+# 调试产物
+gen.txt
+data-history.json
+
+# 系统文件
+.DS_Store
+Thumbs.db

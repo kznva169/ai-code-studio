@@ -1,0 +1,11 @@
+{
+  "name": "ai-code-studio",
+  "version": "1.0.0",
+  "description": "AI创物工场 · AI编码工作台（前端 + Node.js 后端）",
+  "main": "server.js",
+  "scripts": {
+    "start": "node server.js"
+  },
+  "dependencies": {},
+  "license": "MIT"
+}
